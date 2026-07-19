@@ -10,17 +10,18 @@
 
 ## 📂 Структура репозитория
 
+```
 ardupilot_ros_ws/
 ├── src/
-│ └── drone_controller/ # ROS-пакет для управления
-│ ├── drone_controller/
-│ │ ├── init.py
-│ │ └── controller_node.py # Главный узел (гибридный)
-│ ├── package.xml
-│ └── setup.py
+│   └── drone_controller/          # ROS-пакет для управления
+│       ├── drone_controller/
+│       │   ├── __init__.py
+│       │   └── controller_node.py # Главный узел (гибридный)
+│       ├── package.xml
+│       └── setup.py
 ├── README.md
 └── .gitignore
-
+```
 ---
 
 ## 🛠️ Требования
