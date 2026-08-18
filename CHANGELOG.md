@@ -1,4 +1,11 @@
-# Drone Controller C++ (State Machine)
+# Changelog
+
+# Документирование изменений проекта
+
+## - 2026-08-18
+
+### ✨ Added
+**Сборка первого пакета на C++**
 
 Управление дроном через MAVROS на C++ с использованием конечного автомата (State Machine).
 
@@ -29,9 +36,7 @@ IDLE → WAIT_FOR_CONNECTION → SET_MODE → ARM → TAKEOFF → COMPLETE
 **Каждый шаг:**
 
 - Отправляет асинхронный запрос через MAVROS.
-
 - В колбэке обрабатывает ответ и переключает состояние.
-
 - Таймер (100 мс) управляет переходами, не блокируя поток.
 
 ## Компоненты
@@ -51,69 +56,44 @@ IDLE → WAIT_FOR_CONNECTION → SET_MODE → ARM → TAKEOFF → COMPLETE
 - **Язык**: `C++17`
 - **Сборка**: `CMake + colcon`
 
-## 📁 Структура пакета
-```text
 
-drone_controller_cpp/
-├── src/
-│   └── controller_node_state_machine.cpp   # Реализация узла
-├── CMakeLists.txt
-├── package.xml
-└── README.md
-```
-## 🚀 Запуск
+## - 2026-07-31
 
-### 1️⃣ Симулятор (терминал 1)
-```bash
+### ✨ Added
+**Сборка первого пакета на Python.** 
 
-cd ~/ardu_ws/src/ardupilot
-./Tools/autotest/sim_vehicle.py -v ArduCopter --console --enable-DDS
-```
-### 2️⃣ MAVROS (терминал 2)
-```bash
+Реализован гибридный подход:
+- **Телеметрия** получается через DDS-мост (MicroXRCEAgent + топики `/ap/...`).
+- **Команды управления** (взлёт, движение) отправляются через DroneKit, подключённый к MAVProxy.
 
-ros2 run mavros mavros_node --ros-args --param fcu_url:=udp://:14550@
-```
-### 3️⃣ Узел управления (терминал 3)
-```bash
+Такой подход позволяет использовать современный DDS для данных и надёжный MAVLink-канал для команд.
+## 🛠️ Требования
 
-cd ~/ardu_ws
-source install/setup.bash
-ros2 run drone_controller_cpp machine
-```
-## 📊 Пример вывода
-```text
+- Ubuntu 22.04
+- ROS2 Humble
+- ArduPilot SITL (собран с поддержкой DDS)
+- Python 3.10+
+- Пакеты: `dronekit`, `pymavlink`, `microxrcedds_agent`
 
-[INFO] [minimal_controller]: Service /mavros/set_mode is available.
-[INFO] [minimal_controller]: State: connected=1, armed=0, mode=STABILIZE
-[INFO] [minimal_controller]: SetMode GUIDED success
-[INFO] [minimal_controller]: Drone armed successfully
-[INFO] [minimal_controller]: Drone took off
-[INFO] [minimal_controller]: State: connected=1, armed=1, mode=GUIDED
-```
-## 📌 Планы по развитию
+---
 
+🧪 Пример использования
 
-- [ ] Полёт по точкам (waypoints)
+После запуска всех компонентов узел:
 
-- [ ] Посадка (LAND)
+    Подписывается на топик /ap/pose/filtered (телеметрия).
 
-- [ ] Обработка ошибок и таймауты
+    Выводит позицию дрона.
 
-- [ ] Логирование телеметрии в CSV
+    Автоматически отправляет команду взлёта на 5 метров (через DroneKit).
 
-- [ ] Конфигурация через параметры ROS
+При успешном запуске вы увидите сообщения о взлёте и рост высоты в телеметрии.
 
-## 📚 Источники
+📌 Примечания
 
-[MAVROS Documentation](https://docs.ros.org/en/humble/p/mavros/)
+    Параметр DDS_ENABLE в ArduPilot может отсутствовать, это нормально — DDS-модуль активируется флагом --enable-DDS при запуске.
 
-[ArduPilot SITL](https://ardupilot.org/dev/docs/setting-up-sitl-on-linux.html)
+    Для изменения логики управления редактируйте controller_node.py.
 
-[ROS 2 Humble](https://docs.ros.org/en/humble/)
-
-
-## 📬 Контакты
-
-Автор: [ituretsky]  
-GitHub: [ituretsky](https://github.com/ituretsky)
+    Для работы без DroneKit можно использовать MAVROS (экспериментально).
+    
