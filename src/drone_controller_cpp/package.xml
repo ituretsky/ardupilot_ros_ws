@@ -3,7 +3,7 @@
 <package format="3">
   <name>drone_controller_cpp</name>
   <version>0.0.0</version>
-  <description>Beginner client libraries tutorials practice package</description>
+  <description>Узел автономного управления дроном для ArduPilot SITL. Реализует конечный автомат для взлёта, навигации по точкам и посадки с использованием DDS (MicroXRCEAgent).</description>
   <maintainer email="112532019+ituretsky@users.noreply.github.com">guy</maintainer>
   <license>MIT</license>
 
@@ -11,8 +11,9 @@
 
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
-  <depend>mavros_msgs</depend>
-
+  <depend>geographic_msgs</depend>
+  <depend>ardupilot_msgs</depend>
+  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 

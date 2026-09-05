@@ -3,15 +3,11 @@ install/
 log/
 __pycache__/
 *.pyc
+*.o
+*.so
+*.a
 # Большие внешние зависимости
 Micro-XRCE-DDS-*/
 src/ardupilot/
 src/micro_ros_agent/
-build/
-install/
-log/
-*.pyc
-*.o
-*.so
-*.a
-
+src/drone_controller_cpp/src/archive/

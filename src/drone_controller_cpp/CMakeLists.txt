@@ -8,15 +8,16 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-# find_package(geometry_msgs REQUIRED)
-find_package(mavros_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(geographic_msgs REQUIRED)
+find_package(ardupilot_msgs REQUIRED)
 
-add_executable(machine src/controller_node_state_machine.cpp)
-ament_target_dependencies(machine rclcpp mavros_msgs)
+add_executable(dds_machine src/controller_node_dds.cpp)
+ament_target_dependencies(dds_machine rclcpp geometry_msgs geographic_msgs ardupilot_msgs)
 
 install(TARGETS 
 
-  machine
+  dds_machine
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
