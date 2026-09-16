@@ -12,14 +12,26 @@ find_package(rclcpp REQUIRED)
 find_package(geographic_msgs REQUIRED)
 find_package(ardupilot_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
-add_executable(dds_machine src/controller_node_log.cpp)
-ament_target_dependencies(dds_machine rclcpp sensor_msgs geographic_msgs ardupilot_msgs)
+add_executable(dds_machine src/controller_node_params.cpp)
+
+ament_target_dependencies(dds_machine 
+  rclcpp
+  sensor_msgs
+  geographic_msgs
+  ardupilot_msgs 
+  ament_index_cpp
+)
 
 install(TARGETS 
 
   dds_machine
   DESTINATION lib/${PROJECT_NAME})
+  
+install(DIRECTORY missions
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

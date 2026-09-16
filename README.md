@@ -8,12 +8,12 @@
 
 ## 🚀 Возможности
 
-- **Телеметрия**: подписка на топики `/ap/geopose/filtered` и `/ap/battery`, получение координат в градусах и высоты в метрах над уровнем моря, уровня заряда батареи. Логирование информации: время с начала полёта, координаты местоположения дрона, заряд аккумулятора.
+- **Телеметрия**: подписка на топики `/ap/geopose/filtered` и `/ap/battery`, получение координат в градусах и высоты в метрах над уровнем моря, уровня заряда батареи.
 - **Управление**: через вызовы сервисов ArduPilot и публикацию сообщений:
   - Переключение в режим `GUIDED`, сервис `ap/mode_switch`, номер режима 4
   - Армирование (`ARM`) сервис `ap/arm_motors`
   - Взлёт (`TAKEOFF`), сервис `ap/experimental/takeoff`
-  - Полёт по маршруту, сообщения `geographic_msgs::msg::GeoPoseStamped`, топик `/ap/cmd_gps_pose`
+  - Полёт по маршруту, сообщения `ardupilot_msgs::msg::GlobalPosition`, топик `/ap/cmd_gps_pose`
   - Переключение в режим посадки (`LAND`), сервис `ap/mode_switch`, номер режима 9.
 - **Асинхронность**: все вызовы сервисов выполняются асинхронно, без блокировки основного потока.
 - **Тестирование**: работает в симуляторе ArduPilot SITL.
@@ -23,7 +23,8 @@
   - При удалении от точки взлёта на заданное расстояние переключаемся в режим возвращения (`RTL`), сервис `ap/mode_switch`, номер режима 6.
   - При отсутствии связи более заданного интервала времени (5 сек) логируем это состояние и переходим в режим ожидания. При восстановлении связи продолжаем выполнение полёта по маршруту.
 - **Задание маршрута в файле**: все точки облёта задаются в файле `src/drone_controller_cpp/src/route.csv`. Координаты широты и долготы в градусах, высота в метрах от точки старта.
-- **Логирование**: запись телеметрии в `treck.csv` во время полёта (секунда, координаты, высота, заряд, режим, шаг автомата).
+- **Логирование**: запись в `track.csv` во время полёта следующей информации: время с начала полёта в секундах, координаты и высота положения дрона, заряд аккумулятора, шаг конечного автомата, режим полётного контроллера.
+- **Параметры командной строки**: при запуске узла можно задавать максимальное удаление от базы и критический заряд батареи.
 
 ---
 
@@ -66,7 +67,7 @@
 
 - **OS**: `Ubuntu 22.04 LTS`
 - **ROS 2**: `Humble Hawksbill`
-- **DDS + MicroXRCEAgent**: `ros-humble-mavros`
+- **DDS**: `MicroXRCEAgent` (udp4, port 2019)
 - **Симулятор**: `ArduPilot SITL`
 - **Язык**: `C++17`
 - **Сборка** (`CMake + colcon`):
@@ -80,10 +81,13 @@ source install/setup.bash
 ```text
 drone_controller_cpp/
 ├── src/
-│   └── controller_node_dds.cpp   # Реализация узла
+│   └── controller_node_params.cpp
+├── missions/
+│   └── route.csv
 ├── CMakeLists.txt
 ├── package.xml
-└── README.md
+├── README.md
+└── CHANGELOG.md
 ```
 ## 🚀 Запуск
 
@@ -102,51 +106,87 @@ cd ~/ardu_ws
 source install/setup.bash
 ros2 run drone_controller_cpp dds_machine
 ```
+### 4️⃣ Запуск с параметрами (опционально)
+
+Все настройки можно переопределить без перекомпиляции:
+
+```bash
+ros2 run drone_controller_cpp dds_machine --ros-args -p md:=200.0 -p lb:=30.0
+```
+## ⚙️ Параметры
+
+| Параметр | Тип | По умолчанию | Назначение |
+|----------|-----|--------------|------------|
+| `md` | int | 1000 | Предельное удаление от home, м |
+| `lb` | int | 20 | Порог срабатывания RTL, % |
+
 ### Файлы проекта
-- `route.csv` — маршрут (смещения от home в градусах и метрах).
-- `treck.csv` — журнал полёта (создаётся автоматически при запуске узла).
+- Маршрут (смещения от home в градусах и метрах). Задаётся в `share/drone_controller_cpp/missions/route.csv`.
+- Журнал полёта: `~/drone_logs/track.csv`.
+  Создаётся автоматически при запуске узла.
+
+| Файл | Расположение | Назначение |
+|------|--------------|------------|
+| `route.csv` | `share/drone_controller_cpp/missions/route.csv` | Маршрут: смещения от home в градусах (lat, lon) и метрах (alt). Копируется при сборке из `missions/` в исходниках. |
+| `track.csv` | `~/drone_logs/track.csv` | Журнал полёта: секунда, координаты, высота, заряд, режим, шаг автомата. |
+
+**Как найти установленный маршрут:**
+```bash
+ros2 pkg prefix drone_controller_cpp
+# выведет: /home/guy/ardu_ws/install/drone_controller_cpp
+# маршрут лежит в: <путь>/share/drone_controller_cpp/missions/route.csv
+```
+
+**Формат route.csv:**
+```csv
+lat,lon,alt
+0.0,0.0,5.0
+-0.0009,0.0,5.0
+-0.0009,0.0009,5.0
+0.0,0.0009,5.0
+0.0,0.0,5.0
+```
 
 ## 📊 Пример вывода
 ```text
-[INFO] [1789370558.776679445] [minimal_controller]: Контроллер запущен в один поток.
-[INFO] [1789370559.276890130] [minimal_controller]: 0,-35.3632622,149.1652374,584.09,0.0,STABILIZE,INIT
-[INFO] [1789370559.776860769] [minimal_controller]: Запрос режима GUIDED (4)...
-[INFO] [1789370560.276897615] [minimal_controller]: Запрос на ARM...
-[INFO] [1789370560.296591302] [minimal_controller]: Arm response: result=1
-[INFO] [1789370560.776865447] [minimal_controller]: Запрос взлета на 5 метров...
-[INFO] [1789370560.787539686] [minimal_controller]: Takeoff service response received: status=1
-[INFO] [1789370563.776937875] [minimal_controller]: 5,-35.3632622,149.1652374,584.09,99.0,GUIDED,WAIT_TAKEOFF_COMPLETE
-[INFO] [1789370567.776987114] [minimal_controller]: 9,-35.3632622,149.1652374,589.10,98.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370567.777134416] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1789370571.777050376] [minimal_controller]: 13,-35.3631210,149.1652374,592.15,97.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370575.777154176] [minimal_controller]: 17,-35.3630295,149.1652374,593.08,97.0,GUIDED,FLY_TO_POINT
-[ERROR] [1789370578.277129357] [minimal_controller]: Потеря связи: 5.4 секунд
-[ERROR] [1789370583.277253390] [minimal_controller]: Потеря связи: 10.4 секунд
-[INFO] [1789370584.777252590] [minimal_controller]: Связь восстановлена...
-[INFO] [1789370584.777357344] [minimal_controller]: 26,-35.3623581,149.1652374,599.07,93.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370584.777383142] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1789370588.777368991] [minimal_controller]: 30,-35.3623619,149.1654205,602.66,92.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370592.777513128] [minimal_controller]: 34,-35.3623619,149.1656952,605.21,91.0,GUIDED,FLY_TO_POINT
-[ERROR] [1789370596.777496399] [minimal_controller]: Потеря связи: 5.4 секунд
-[INFO] [1789370599.277503975] [minimal_controller]: Связь восстановлена...
-[INFO] [1789370599.277653883] [minimal_controller]: 40,-35.3623619,149.1661530,609.07,89.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370599.277692245] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1789370603.777597444] [minimal_controller]: 45,-35.3625488,149.1661530,605.62,87.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370607.777677476] [minimal_controller]: 49,-35.3628311,149.1661377,602.92,86.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370611.777764078] [minimal_controller]: 53,-35.3628311,149.1661377,602.92,86.0,GUIDED,FLY_TO_POINT
-[ERROR] [1789370612.277761015] [minimal_controller]: Потеря связи: 5.2 секунд
-[INFO] [1789370614.277817695] [minimal_controller]: Связь восстановлена...
-[INFO] [1789370614.278014476] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1789370615.777799916] [minimal_controller]: 57,-35.3632660,149.1661224,598.20,84.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370619.777917001] [minimal_controller]: 61,-35.3632660,149.1658325,594.08,83.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370623.777975299] [minimal_controller]: 65,-35.3632622,149.1654053,590.39,82.0,GUIDED,FLY_TO_POINT
-[INFO] [1789370626.277989938] [minimal_controller]: Целевая точка достигнута...
-[WARN] [1789370626.278035780] [minimal_controller]: Нет больше waypoints
-[INFO] [1789370626.778039429] [minimal_controller]: Запрос режима LAND (9)...
-[INFO] [1789370627.778038712] [minimal_controller]: 69,-35.3632622,149.1652222,588.84,81.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1789370631.778149229] [minimal_controller]: 73,-35.3632660,149.1652374,586.79,79.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1789370635.778190353] [minimal_controller]: 77,-35.3632622,149.1652374,584.78,78.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1789370636.778323877] [minimal_controller]: Миссия завершена успешно!
+guy@guy-home:~/ardu_ws$ ros2 run drone_controller_cpp dds_machine --ros-args -p lb:=90.0
+[INFO] [1789559286.666171402] [minimal_controller]: Контроллер запущен в один поток.
+[INFO] [1789559286.666292879] [minimal_controller]: Журнал полёта: /home/guy/drone_logs/track.csv
+[INFO] [1789559287.166413147] [minimal_controller]: 0,-35.3632622,149.1652374,584.09,0.0,STABILIZE,INIT
+[INFO] [1789559287.666419651] [minimal_controller]: Запрос режима GUIDED (4)...
+[INFO] [1789559288.166437313] [minimal_controller]: Запрос на ARM...
+[INFO] [1789559288.179677825] [minimal_controller]: Arm response: result=1
+[INFO] [1789559288.666416569] [minimal_controller]: Запрос взлета на 15 метров...
+[INFO] [1789559288.671789187] [minimal_controller]: Takeoff service response received: status=1
+[INFO] [1789559291.166602544] [minimal_controller]: 4,-35.3632622,149.1652374,584.09,100.0,GUIDED,WAIT_TAKEOFF_COMPLETE
+[INFO] [1789559295.166793054] [minimal_controller]: 8,-35.3632622,149.1652374,590.00,98.0,GUIDED,WAIT_TAKEOFF_COMPLETE
+[INFO] [1789559299.166999717] [minimal_controller]: 12,-35.3632622,149.1652374,598.72,97.0,GUIDED,WAIT_TAKEOFF_COMPLETE
+[INFO] [1789559299.667285003] [minimal_controller]: Целевая точка достигнута...
+[INFO] [1789559303.167251128] [minimal_controller]: 16,-35.3631859,149.1652374,599.07,96.0,GUIDED,FLY_TO_POINT
+[INFO] [1789559307.167470044] [minimal_controller]: 20,-35.3628616,149.1652374,599.09,95.0,GUIDED,FLY_TO_POINT
+[INFO] [1789559311.167695391] [minimal_controller]: 24,-35.3624992,149.1652374,599.11,94.0,GUIDED,FLY_TO_POINT
+[INFO] [1789559313.667864888] [minimal_controller]: Целевая точка достигнута...
+[INFO] [1789559315.167920874] [minimal_controller]: 28,-35.3623543,149.1652527,599.41,93.0,GUIDED,FLY_TO_POINT
+[INFO] [1789559319.168145439] [minimal_controller]: 32,-35.3623619,149.1655121,603.61,91.0,GUIDED,FLY_TO_POINT
+[INFO] [1789559323.168418001] [minimal_controller]: 36,-35.3623619,149.1659546,607.48,90.0,GUIDED,FLY_TO_POINT
+[INFO] [1789559325.168532971] [minimal_controller]: Запрос режима RTL (6)...
+[INFO] [1789559327.168616163] [minimal_controller]: 40,-35.3623619,149.1661530,608.97,89.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559331.168848685] [minimal_controller]: 44,-35.3624535,149.1660614,609.02,88.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559335.169113531] [minimal_controller]: 48,-35.3627090,149.1658020,609.01,86.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559339.169324459] [minimal_controller]: 52,-35.3629875,149.1655121,609.00,85.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559343.169544380] [minimal_controller]: 56,-35.3632278,149.1652679,608.99,84.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559347.169774852] [minimal_controller]: 60,-35.3632660,149.1652374,608.99,83.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559351.170047845] [minimal_controller]: 64,-35.3632660,149.1652374,609.01,82.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559355.170290654] [minimal_controller]: 68,-35.3632622,149.1652374,604.83,81.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559359.170543242] [minimal_controller]: 72,-35.3632622,149.1652374,598.85,80.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559363.170795214] [minimal_controller]: 76,-35.3632622,149.1652374,594.10,78.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559367.171050059] [minimal_controller]: 80,-35.3632622,149.1652374,592.11,77.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559371.171268876] [minimal_controller]: 84,-35.3632622,149.1652374,590.10,76.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559375.171545130] [minimal_controller]: 88,-35.3632622,149.1652374,588.11,75.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559379.171805734] [minimal_controller]: 92,-35.3632622,149.1652374,586.10,74.0,RTL,WAIT_RTL_RESPONSE
+[INFO] [1789559383.172011713] [minimal_controller]: 96,-35.3632622,149.1652374,584.09,73.0,RTL,MISSION_COMPLETE
+[INFO] [1789559383.172129485] [minimal_controller]: Миссия завершена успешно!
+
 ```
 ## 🧪 Пример использования
 
@@ -180,7 +220,7 @@ ros2 run drone_controller_cpp dds_machine
 
 - [ ] Обработать лог файл, построить траекторию, высоту, заряд
 
-- [ ] Вынести параметры миссии в ROS-параметры
+- [x] Вынести параметры миссии в ROS-параметры
 
 - [ ] Видео полёта — записать экран с MAVProxy map
 
