@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'plot_log = drone_controller.plot_log:main',
             'controller_node = drone_controller.controller_node:main',
         ],
     },
