@@ -30,7 +30,7 @@
 
 ## 🎬 Демонстрация
 
-[Автономный полёт (3 мин)](docs/video/flight_small.mp4)
+[Автономный полёт (3 мин)](./src/drone_controller_cpp/docs/video/flight_small.mp4)
 
 ---
 
