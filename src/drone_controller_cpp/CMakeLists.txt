@@ -8,17 +8,18 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-# find_package(geometry_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(geographic_msgs REQUIRED)
 find_package(ardupilot_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
-add_executable(dds_machine src/controller_node_params.cpp)
+add_executable(pid_machine src/pid_twist.cpp src/pid_controller.cpp)
 
-ament_target_dependencies(dds_machine 
+ament_target_dependencies(pid_machine 
   rclcpp
   sensor_msgs
+  geometry_msgs
   geographic_msgs
   ardupilot_msgs 
   ament_index_cpp
@@ -26,7 +27,7 @@ ament_target_dependencies(dds_machine
 
 install(TARGETS 
 
-  dds_machine
+  pid_machine
   DESTINATION lib/${PROJECT_NAME})
   
 install(DIRECTORY missions

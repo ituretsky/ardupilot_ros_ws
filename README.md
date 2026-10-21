@@ -8,13 +8,14 @@
 
 ## 🚀 Возможности
 
-- **Телеметрия**: подписка на топики `/ap/geopose/filtered` и `/ap/battery`, получение координат в градусах и высоты в метрах над уровнем моря, уровня заряда батареи.
+- **Телеметрия**: подписка на топики `/ap/geopose/filtered`, `/ap/status` и `/ap/battery`, получение координат в градусах и высоты в метрах над уровнем моря, режима, уровня заряда батареи.
 - **Управление**: через вызовы сервисов ArduPilot и публикацию сообщений:
   - Переключение в режим `GUIDED`, сервис `ap/mode_switch`, номер режима 4
   - Армирование (`ARM`) сервис `ap/arm_motors`
   - Взлёт (`TAKEOFF`), сервис `ap/experimental/takeoff`
-  - Полёт по маршруту, сообщения `ardupilot_msgs::msg::GlobalPosition`, топик `/ap/cmd_gps_pose`
   - Переключение в режим посадки (`LAND`), сервис `ap/mode_switch`, номер режима 9.
+- **Управление скоростью через PID**: публикация `geometry_msgs::msg::TwistStamped` в `/ap/cmd_vel`
+ (Earth Frame, ENU). Три независимых PID-контроллера по осям X (восток), Y (север), Z (вверх) с ограничением скорости и anti-windup.
 - **Асинхронность**: все вызовы сервисов выполняются асинхронно, без блокировки основного потока.
 - **Тестирование**: работает в симуляторе ArduPilot SITL.
 - **Обработка внештатных ситуаций**: батарея, геозона, таймаут связи.
@@ -59,7 +60,7 @@
 
 - Отправляет асинхронный запрос к сервисам ArduPilot или публикует сообщение.
 - В колбэке обрабатывает ответ и переключает состояние.
-- Таймер (500 мс) управляет переходами, не блокируя поток.
+- Таймер (50 мс) управляет переходами, не блокируя поток.
 
 ### Компоненты
 
@@ -68,6 +69,8 @@
 | Подписка | Обновляет положение дрона, заряд батареи, режим. Колбэк короткий и неблокирующий. |
 | Таймер | Запускает `control_loop()` каждые 500 мс. Управляет миссией по шагам. |
 | Клиенты ArduPilot | `mode_switch`, `arm_motors`, `takeoff` — асинхронные вызовы с колбэками. |
+| PID-контроллеры | Три независимых контроллера (pid_north_, pid_east_, pid_up_) вычисляют скорость по ошибке позиции. |
+| Публикация скорости | TwistStamped в /ap/cmd_vel, frame_id="map" (ENU) |
 
 ## 🛠 Стек
 
@@ -77,6 +80,7 @@
 - **Симулятор**: `ArduPilot SITL`
 - **Язык**: `C++17`
 - **Сборка** (`CMake + colcon`):
+- **geometry_msgs**: `TwistStamped` для команд скорости
 ```bash
 cd ~/ardu_ws
 colcon build --packages-select drone_controller_cpp
@@ -87,7 +91,9 @@ source install/setup.bash
 ```text
 drone_controller_cpp/
 ├── src/
-│   └── controller_node_params.cpp
+│   ├── pid_twist.cpp            # Реализация узла (PID + TwistStamped)
+│   ├── pid_controller.cpp       # Реализация класса PIDController
+│   └── pid_controller.hpp       # Объявление класса PIDController
 ├── missions/
 │   └── route.csv
 ├── CMakeLists.txt
@@ -110,12 +116,12 @@ MicroXRCEAgent udp4 --port 2019
 ```bash
 cd ~/ardu_ws
 source install/setup.bash
-ros2 run drone_controller_cpp dds_machine
+ros2 run drone_controller_cpp pid_machine
 ```
 ### 4️⃣ Запуск с параметрами (опционально)
 Все настройки можно переопределить без перекомпиляции:
 ```bash
-ros2 run drone_controller_cpp dds_machine --ros-args -p md:=200.0 -p lb:=30.0
+ros2 run drone_controller_cpp pid_machine --ros-args -p md:=200.0 -p lb:=30.0
 ```
 
 ## ⚙️ Параметры
@@ -126,9 +132,6 @@ ros2 run drone_controller_cpp dds_machine --ros-args -p md:=200.0 -p lb:=30.0
 | `lb` | int | 20 | Порог срабатывания RTL, % |
 
 ### Файлы проекта
-- Маршрут (смещения от home в градусах и метрах). Задаётся в `share/drone_controller_cpp/missions/route.csv`.
-- Журнал полёта: `~/drone_logs/track.csv`.
-  Создаётся автоматически при запуске узла.
 
 | Файл | Расположение | Назначение |
 |------|--------------|------------|
@@ -152,53 +155,44 @@ lat,lon,alt
 0.0,0.0,5.0
 ```
 
-## 📊 Пример вывода
+## 📊 Пример консольного вывода
 ```text
-guy@guy-home:~/ardu_ws$ ros2 run drone_controller_cpp dds_machine --ros-args -p lb:=90.0
-[INFO] [1789559286.666171402] [minimal_controller]: Контроллер запущен в один поток.
-[INFO] [1789559286.666292879] [minimal_controller]: Журнал полёта: /home/guy/drone_logs/track.csv
-[INFO] [1789559287.166413147] [minimal_controller]: 0,-35.3632622,149.1652374,584.09,0.0,STABILIZE,INIT
-[INFO] [1789559287.666419651] [minimal_controller]: Запрос режима GUIDED (4)...
-[INFO] [1789559288.166437313] [minimal_controller]: Запрос на ARM...
-[INFO] [1789559288.179677825] [minimal_controller]: Arm response: result=1
-[INFO] [1789559288.666416569] [minimal_controller]: Запрос взлета на 15 метров...
-[INFO] [1789559288.671789187] [minimal_controller]: Takeoff service response received: status=1
-[INFO] [1789559291.166602544] [minimal_controller]: 4,-35.3632622,149.1652374,584.09,100.0,GUIDED,WAIT_TAKEOFF_COMPLETE
-[INFO] [1789559295.166793054] [minimal_controller]: 8,-35.3632622,149.1652374,590.00,98.0,GUIDED,WAIT_TAKEOFF_COMPLETE
-[INFO] [1789559299.166999717] [minimal_controller]: 12,-35.3632622,149.1652374,598.72,97.0,GUIDED,WAIT_TAKEOFF_COMPLETE
-[INFO] [1789559299.667285003] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1789559303.167251128] [minimal_controller]: 16,-35.3631859,149.1652374,599.07,96.0,GUIDED,FLY_TO_POINT
-[INFO] [1789559307.167470044] [minimal_controller]: 20,-35.3628616,149.1652374,599.09,95.0,GUIDED,FLY_TO_POINT
-[INFO] [1789559311.167695391] [minimal_controller]: 24,-35.3624992,149.1652374,599.11,94.0,GUIDED,FLY_TO_POINT
-[INFO] [1789559313.667864888] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1789559315.167920874] [minimal_controller]: 28,-35.3623543,149.1652527,599.41,93.0,GUIDED,FLY_TO_POINT
-[INFO] [1789559319.168145439] [minimal_controller]: 32,-35.3623619,149.1655121,603.61,91.0,GUIDED,FLY_TO_POINT
-[INFO] [1789559323.168418001] [minimal_controller]: 36,-35.3623619,149.1659546,607.48,90.0,GUIDED,FLY_TO_POINT
-[INFO] [1789559325.168532971] [minimal_controller]: Запрос режима RTL (6)...
-[INFO] [1789559327.168616163] [minimal_controller]: 40,-35.3623619,149.1661530,608.97,89.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559331.168848685] [minimal_controller]: 44,-35.3624535,149.1660614,609.02,88.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559335.169113531] [minimal_controller]: 48,-35.3627090,149.1658020,609.01,86.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559339.169324459] [minimal_controller]: 52,-35.3629875,149.1655121,609.00,85.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559343.169544380] [minimal_controller]: 56,-35.3632278,149.1652679,608.99,84.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559347.169774852] [minimal_controller]: 60,-35.3632660,149.1652374,608.99,83.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559351.170047845] [minimal_controller]: 64,-35.3632660,149.1652374,609.01,82.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559355.170290654] [minimal_controller]: 68,-35.3632622,149.1652374,604.83,81.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559359.170543242] [minimal_controller]: 72,-35.3632622,149.1652374,598.85,80.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559363.170795214] [minimal_controller]: 76,-35.3632622,149.1652374,594.10,78.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559367.171050059] [minimal_controller]: 80,-35.3632622,149.1652374,592.11,77.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559371.171268876] [minimal_controller]: 84,-35.3632622,149.1652374,590.10,76.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559375.171545130] [minimal_controller]: 88,-35.3632622,149.1652374,588.11,75.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559379.171805734] [minimal_controller]: 92,-35.3632622,149.1652374,586.10,74.0,RTL,WAIT_RTL_RESPONSE
-[INFO] [1789559383.172011713] [minimal_controller]: 96,-35.3632622,149.1652374,584.09,73.0,RTL,MISSION_COMPLETE
-[INFO] [1789559383.172129485] [minimal_controller]: Миссия завершена успешно!
-
+guy@guy-home:~$ ros2 run drone_controller_cpp pid_machine
+[INFO] [1792597740.375735524] [minimal_controller]: Контроллер запущен в один поток.
+[INFO] [1792597740.375974943] [minimal_controller]: Журнал полёта: /home/guy/drone_logs/track.csv
+[INFO] [1792597740.425956607] [minimal_controller]: 0,0.0000000,0.0000000,0.00,0.0,STABILIZE,INIT
+[INFO] [1792597740.475881918] [minimal_controller]: Запрос режима GUIDED (4)...
+[INFO] [1792597740.525889911] [minimal_controller]: Запрос на ARM...
+[INFO] [1792597740.544623921] [minimal_controller]: Arm response: result=1
+[INFO] [1792597740.575947694] [minimal_controller]: Запрос взлета на 15 метров...
+[INFO] [1792597740.585539809] [minimal_controller]: Takeoff service response received: status=1
+[INFO] [1792597744.475882112] [minimal_controller]: 4,-35.3632622,149.1652374,584.19,99.0,GUIDED,WAIT_TAKEOFF_COMPLETE
+[INFO] [1792597748.475901876] [minimal_controller]: 8,-35.3632622,149.1652374,592.39,98.0,GUIDED,WAIT_TAKEOFF_COMPLETE
+[INFO] [1792597751.476009683] [minimal_controller]: PID: eN=0.0 eE=0.0 eU=0.4 → vN=0.00 vE=0.00 vU=0.08
+[INFO] [1792597751.476262862] [minimal_controller]: Целевая точка достигнута...
+[INFO] [1792597752.476012778] [minimal_controller]: 12,-35.3632584,149.1652374,599.10,97.0,GUIDED,FLY_TO_POINT
+[INFO] [1792597752.476139738] [minimal_controller]: PID: eN=99.8 eE=0.0 eU=-0.0 → vN=5.00 vE=0.00 vU=-0.00
+[INFO] [1792597753.525968914] [minimal_controller]: PID: eN=96.8 eE=0.0 eU=0.0 → vN=5.00 vE=0.00 vU=0.01
+...
+[INFO] [1792597916.477750900] [minimal_controller]: PID: eN=0.0 eE=-2.8 eU=0.0 → vN=0.00 vE=-0.28 vU=0.00
+[INFO] [1792597916.777691710] [minimal_controller]: 176,-35.3632622,149.1652679,599.09,50.0,GUIDED,FLY_TO_POINT
+[INFO] [1792597917.527709298] [minimal_controller]: PID: eN=0.0 eE=-2.8 eU=0.0 → vN=0.00 vE=-0.28 vU=0.00
+[INFO] [1792597917.977751531] [minimal_controller]: Целевая точка достигнута...
+[INFO] [1792597918.027703830] [minimal_controller]: Запрос режима LAND (9)...
+[INFO] [1792597920.777789410] [minimal_controller]: 180,-35.3632622,149.1652527,596.25,49.0,LAND,WAIT_LANDING_RESPONSE
+[INFO] [1792597924.827804812] [minimal_controller]: 184,-35.3632622,149.1652527,593.26,48.0,LAND,WAIT_LANDING_RESPONSE
+[INFO] [1792597928.827853910] [minimal_controller]: 188,-35.3632622,149.1652527,591.24,47.0,LAND,WAIT_LANDING_RESPONSE
+[INFO] [1792597932.827880671] [minimal_controller]: 192,-35.3632622,149.1652527,589.24,46.0,LAND,WAIT_LANDING_RESPONSE
+[INFO] [1792597936.827885819] [minimal_controller]: 196,-35.3632622,149.1652527,587.23,45.0,LAND,WAIT_LANDING_RESPONSE
+[INFO] [1792597940.828055020] [minimal_controller]: 200,-35.3632622,149.1652527,585.24,44.0,LAND,WAIT_LANDING_RESPONSE
+[INFO] [1792597942.178005161] [minimal_controller]: Миссия завершена успешно!
 ```
 ## 🧪 Пример использования
 
 ### После запуска всех компонентов узел:
 
 - Подписывается на топики `/ap/geopose/filtered` и `/ap/battery` (телеметрия).
-- Автоматически отправляет команды на взлёт, облёт по квадрату и посадку.
+- Автоматически отправляет команды на взлёт, PID-управление скоростью по маршруту, посадку.
 - Отслеживает состояние заряда батареи, удаление от базы, связь с узлом управления.
 - Выводит информацию о ходе полёта.
 
@@ -229,24 +223,19 @@ ros2 run drone_controller plot_log ~/drone_logs/track.csv
 ![Анализ полёта](src/drone_controller_cpp/docs/track_plot.png)
 
 ## 📌 Планы по развитию
-
 - [x] Полёт по точкам (waypoints)
-
 - [x] Посадка (LAND)
-
 - [x] Обработка ошибок (таймауты, аварийная посадка при ошибке)
-
 - [x] Обработка аварий (заряд аккумулятора, вылет за периметр)
-
 - [x] Логирование телеметрии в CSV
-
 - [x] Задание маршрутной карты в файле route.csv
-
 - [x] Обработать лог файл, построить траекторию, высоту, заряд
-
 - [x] Вынести параметры миссии в ROS-параметры
-
 - [x] Видео полёта — записать экран с MAVProxy map
+- [x] PID-регулятор для управления полётом через скорость
+- [ ] Подбор Ki и Kd для точного дотягивания до точки
+- [ ] Компенсация ветра (SIM_WIND_SPD)
+- [ ] Расширить CSV колонками PID (vN, vE, vU, eN, eE, eU)
 
 ## [История изменений](CHANGELOG.md)
 
