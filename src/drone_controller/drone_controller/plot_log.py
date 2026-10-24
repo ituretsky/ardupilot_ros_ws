@@ -14,20 +14,38 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Использование: plot_log <track.csv> [output.png]")
-        print("Пример: plot_log ~/drone_logs/track.csv ~/drone_logs/plot.png")
-        sys.exit(1)
 
-    csv_path = sys.argv[1]
+    # 1. Путь к CSV: если не передан, берём лог по умолчанию
+    if len(sys.argv) >= 2:
+        csv_path = sys.argv[1]
+    else:
+        csv_path = os.path.expanduser("~/drone_logs/track.csv")
+
     if not os.path.isfile(csv_path):
         print(f"Файл не найден: {csv_path}")
         sys.exit(1)
 
+    # 2. Путь для сохранения: если не передан, сохраняем в docs/track_plot.png
     if len(sys.argv) >= 3:
         output_path = sys.argv[2]
     else:
-        output_path = os.path.splitext(csv_path)[0] + "_plot.png"
+    
+        # Пытаемся вычислить путь к папке docs в исходниках
+        try:
+            from ament_index_python.packages import get_package_share_directory
+            pkg_share = get_package_share_directory('drone_controller_cpp')
+            # pkg_share = .../ardu_ws/install/drone_controller_cpp/share/drone_controller_cpp
+            # Поднимаемся на 4 уровня вверх: share -> drone_controller_cpp -> install -> ardu_ws
+            workspace_dir = os.path.abspath(os.path.join(pkg_share, '..', '..', '..', '..'))
+            default_output_dir = os.path.join(workspace_dir, 'src', 'drone_controller_cpp', 'docs')
+        except Exception:
+            # Если не удалось найти пакет, сохраняем рядом с csv
+            default_output_dir = os.path.dirname(csv_path)
+    
+        # Имя файла по умолчанию
+        filename = "track_plot.png"
+        os.makedirs(default_output_dir, exist_ok=True) # Создаём папку, если её нет
+        output_path = os.path.join(default_output_dir, filename)
 
     # Читаем CSV
     df = pd.read_csv(csv_path)

@@ -238,7 +238,6 @@ ros2 run drone_controller plot_log ~/drone_logs/track.csv
 - [x] Расширить CSV колонками PID (vN, vE, vU, eN, eE, eU)
 - [ ] Подбор Ki и Kd для точного дотягивания до точки
 - [ ] Компенсация ветра (SIM_WIND_SPD)
-- [ ] Расширить CSV колонками PID (vN, vE, vU, eN, eE, eU)
 
 ## [История изменений](CHANGELOG.md)
 
