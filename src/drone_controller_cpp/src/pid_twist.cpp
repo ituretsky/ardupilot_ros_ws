@@ -73,6 +73,14 @@ public:
   uint8_t current_mode_;            // режим ArduPilot
   bool err_flag_ = false;           // флаг обрыва связи
 
+// Последние значения PID (для логирования)
+  double last_v_north_{0.0};
+  double last_v_east_{0.0};
+  double last_v_up_{0.0};
+  double last_error_north_{0.0};
+  double last_error_east_{0.0};
+  double last_error_up_{0.0};
+
 // Время запуска узла и крайнего сеанса связи
   rclcpp::Time start_time_;
   rclcpp::Time latest_telemetry_time_;
@@ -197,7 +205,8 @@ ros2 run drone_controller_cpp pid_position --ros-args \
     track_file.open(log_file_);
     if (track_file.is_open()) {
       RCLCPP_INFO(this->get_logger(), "Журнал полёта: %s", log_file_.c_str());
-      track_file << "секунда,широта,долгота,высота,заряд,режим,шаг\n";
+      track_file << "секунда,широта,долгота,высота,заряд,режим,шаг,"
+                 << "vN,vE,vU,eN,eE,eU\n";
     }
   }
 
@@ -250,7 +259,13 @@ private:
         << std::setprecision(2) << current_alt_ << ','
         << std::setprecision(1) << current_charge_ << ','
         << mode_to_string(current_mode_) << ','
-        << state_to_string(current_state_);
+        << state_to_string(current_state_) << ','
+        << std::setprecision(2) << last_v_north_ << ','
+        << last_v_east_ << ','
+        << last_v_up_ << ','
+        << std::setprecision(1) << last_error_north_ << ','
+        << last_error_east_ << ','
+        << last_error_up_;
     std::string log_line = oss.str();
 
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 4000, "%s", log_line.c_str());
@@ -406,6 +421,14 @@ private:
     double v_north = pid_north_.update(error_north, dt);
     double v_east  = pid_east_.update(error_east, dt);
     double v_up    = pid_up_.update(error_up, dt);
+
+// Сохраняем для логирования
+    last_v_north_ = v_north;
+    last_v_east_  = v_east;
+    last_v_up_    = v_up;
+    last_error_north_ = error_north;
+    last_error_east_  = error_east;
+    last_error_up_    = error_up;
 
 // Публикация скоростей
     geometry_msgs::msg::TwistStamped msg;
