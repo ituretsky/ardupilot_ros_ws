@@ -192,14 +192,16 @@ time_period_ = std::chrono::milliseconds(period_ms); */
     this->declare_parameter<int>("lb", 20);
 // Параметры PID для горизонтали (North и East)
     this->declare_parameter<double>("kp_h", 0.1);
-    this->declare_parameter<double>("ki_h", 0.0);
-    this->declare_parameter<double>("kd_h", 0.0);
+    this->declare_parameter<double>("ki_h", 0.005);
+    this->declare_parameter<double>("kd_h", 0.3);
     this->declare_parameter<double>("max_v_h", 5.0);
 // Параметры PID для вертикали (Up)
     this->declare_parameter<double>("kp_u", 0.2);
     this->declare_parameter<double>("ki_u", 0.0);
     this->declare_parameter<double>("kd_u", 0.0);
     this->declare_parameter<double>("max_v_u", 2.0);
+// Коэффициент фильтра для дифференциальной составляющей
+    this->declare_parameter<double>("a_d", 0.05);
 
 // Применяем параметры
     max_distance_ = this->get_parameter("md").as_int();
@@ -210,19 +212,22 @@ time_period_ = std::chrono::milliseconds(period_ms); */
         this->get_parameter("ki_h").as_double(),
         this->get_parameter("kd_h").as_double());
     pid_north_.set_max_output(this->get_parameter("max_v_h").as_double());
+    pid_north_.set_filter_alpha(this->get_parameter("a_d").as_double());
 
     pid_east_.set_gains(
         this->get_parameter("kp_h").as_double(),
         this->get_parameter("ki_h").as_double(),
         this->get_parameter("kd_h").as_double());
     pid_east_.set_max_output(this->get_parameter("max_v_h").as_double());
+    pid_east_.set_filter_alpha(this->get_parameter("a_d").as_double());
 
     pid_up_.set_gains(
         this->get_parameter("kp_u").as_double(),
         this->get_parameter("ki_u").as_double(),
         this->get_parameter("kd_u").as_double());
     pid_up_.set_max_output(this->get_parameter("max_v_u").as_double());
-    
+    pid_up_.set_filter_alpha(this->get_parameter("a_d").as_double());
+
 // 6. Создаём журнальный файл, пишем заголовок
     std::string log_dir = std::string(getenv("HOME")) + "/drone_logs";
     std::filesystem::create_directories(log_dir);
