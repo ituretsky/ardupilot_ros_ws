@@ -7,6 +7,8 @@ public:
 
     double update(double error, double dt);
     void reset();
+    void set_gains(double kp, double ki, double kd);
+    void set_max_output(double max_output);
 
 private:
     double kp_;

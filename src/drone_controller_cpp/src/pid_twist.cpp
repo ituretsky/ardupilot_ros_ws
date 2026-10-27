@@ -112,7 +112,7 @@ public:
 
   rclcpp::TimerBase::SharedPtr timer_;
 
-// Создаём объекты расчёта скорости по направлениям NED
+// Создаём объекты расчёта скорости по направлениям NEU
   PIDController pid_north_{0.1, 0.0, 0.0, 5.0};  // Kp, Ki, Kd, max speed
   PIDController pid_east_ {0.1, 0.0, 0.0, 5.0};
   PIDController pid_up_   {0.2, 0.0, 0.0, 2.0};
@@ -176,28 +176,53 @@ public:
     alt = waypoints_.at(0).alt;            // высота из первой строки маршрута
 
 /* в конструкторе, до создания таймера:
-this->declare_parameter<int>("time_period", 500);
+this->declare_parameter<int>("time_period", 50);
 int period_ms = this->get_parameter("time_period").as_int();
 time_period_ = std::chrono::milliseconds(period_ms); */
 
-// 4. Запускаем таймер автомата (2 Гц) и засекаем старт
+// 4. Запускаем таймер автомата (20 Гц) и засекаем старт
     timer_ = this->create_wall_timer(time_period_, [this]() { this->control_loop(); });
     start_time_ = this->get_clock()->now();
     latest_telemetry_time_ = start_time_;  // просто инициализируем не нулевым значением
     RCLCPP_INFO(this->get_logger(), "Контроллер запущен в один поток.");
 
 // 5. Параметры
+// Максимальное удаление и минимальный заряд
     this->declare_parameter<int>("md", 1000);
     this->declare_parameter<int>("lb", 20);
-/* this->declare_parameter<double>("pid_kp_north", 0.1);
-this->declare_parameter<double>("pid_ki_north", 0.0);
-this->declare_parameter<double>("pid_kd_north", 0.0);
-// аналогично east и up, команда запуска:
-ros2 run drone_controller_cpp pid_position --ros-args \
-  -p pid_kp_north:=0.15 -p pid_ki_north:=0.01 */
+// Параметры PID для горизонтали (North и East)
+    this->declare_parameter<double>("kp_h", 0.1);
+    this->declare_parameter<double>("ki_h", 0.0);
+    this->declare_parameter<double>("kd_h", 0.0);
+    this->declare_parameter<double>("max_v_h", 5.0);
+// Параметры PID для вертикали (Up)
+    this->declare_parameter<double>("kp_u", 0.2);
+    this->declare_parameter<double>("ki_u", 0.0);
+    this->declare_parameter<double>("kd_u", 0.0);
+    this->declare_parameter<double>("max_v_u", 2.0);
+
+// Применяем параметры
     max_distance_ = this->get_parameter("md").as_int();
     low_battery_ = this->get_parameter("lb").as_int();
 
+    pid_north_.set_gains(
+        this->get_parameter("kp_h").as_double(),
+        this->get_parameter("ki_h").as_double(),
+        this->get_parameter("kd_h").as_double());
+    pid_north_.set_max_output(this->get_parameter("max_v_h").as_double());
+
+    pid_east_.set_gains(
+        this->get_parameter("kp_h").as_double(),
+        this->get_parameter("ki_h").as_double(),
+        this->get_parameter("kd_h").as_double());
+    pid_east_.set_max_output(this->get_parameter("max_v_h").as_double());
+
+    pid_up_.set_gains(
+        this->get_parameter("kp_u").as_double(),
+        this->get_parameter("ki_u").as_double(),
+        this->get_parameter("kd_u").as_double());
+    pid_up_.set_max_output(this->get_parameter("max_v_u").as_double());
+    
 // 6. Создаём журнальный файл, пишем заголовок
     std::string log_dir = std::string(getenv("HOME")) + "/drone_logs";
     std::filesystem::create_directories(log_dir);
@@ -439,7 +464,7 @@ private:
     msg.twist.linear.x = v_east;  // Ваш PID по востоку
     msg.twist.linear.y = v_north; // Ваш PID по северу
     msg.twist.linear.z = v_up;    // Ваш PID по высоте (вверх)
-    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
         "PID: eN=%.1f eE=%.1f eU=%.1f → vN=%.2f vE=%.2f vU=%.2f",
         error_north, error_east, error_up, v_north, v_east, v_up);
     cmd_vel_pub_->publish(msg);
@@ -464,6 +489,9 @@ private:
     double vertical_dist = std::abs(current_alt_ - (home_alt + target.alt));
     if (vertical_dist < 0.5 && horizontal_dist < 1.6) {
       target_waypoint_idx_++;
+      pid_north_.reset();
+      pid_east_.reset();
+      pid_up_.reset();
       RCLCPP_INFO(this->get_logger(), "Целевая точка достигнута...");
       if (target_waypoint_idx_ >= waypoints_.size()) current_state_ = FlightState::SEND_LANDING;
     }

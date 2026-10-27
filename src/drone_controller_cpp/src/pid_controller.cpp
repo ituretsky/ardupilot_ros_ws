@@ -11,7 +11,7 @@ double PIDController::update(double error, double dt) {
     double integral_max = max_output_ / ki_;
     if (integral_ > integral_max) integral_ = integral_max;
     if (integral_ < -integral_max) integral_ = -integral_max;
-  }
+  } else integral_ = 0.0;
   double derivative = 0.0;
   if (first_call_) first_call_ = false;
   else derivative = (error - prev_error_) / dt;
@@ -26,4 +26,14 @@ void PIDController::reset() {
   integral_ = 0.0;
   prev_error_ = 0.0;
   first_call_ = true;
+}
+   
+void PIDController::set_gains(double kp, double ki, double kd) {
+  kp_ = kp;
+  ki_ = ki;
+  kd_ = kd;
+}
+
+void PIDController::set_max_output(double max_output) {
+  max_output_ = max_output;
 }
