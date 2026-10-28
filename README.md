@@ -123,6 +123,10 @@ ros2 run drone_controller_cpp pid_machine
 ```bash
 ros2 run drone_controller_cpp pid_machine --ros-args -p md:=200.0 -p lb:=30.0 -p ki_h:=0.001 -p kp_h:=0.1
 ```
+### Тестирование на ветру (виртуальный снос)
+```bash
+ros2 run drone_controller_cpp pid_machine --ros-args -p wind_e:=-3.0 -p ki_h:=0.04 -p kd_h:=0.5 -p a_d:=0.03
+```
 
 ## ⚙️ Параметры
 
@@ -135,6 +139,7 @@ ros2 run drone_controller_cpp pid_machine --ros-args -p md:=200.0 -p lb:=30.0 -p
 | `kp_u`, `ki_u`, `kd_u` | double | 0.2, 0.0, 0.0 | Коэффициенты PID для вертикали (U) |
 | `max_v_u` | double | 2.0 | Ограничение скорости по вертикали, м/с |
 | `a_d` | double | 0.05 | Коэффициент фильтра низких частот для D-составляющей (0..1) |
+| `wind_e` | double | 0.0 | Виртуальный ветер для тестов (смещение скорости по оси E, м/с) |
 
 ### Файлы проекта
 
@@ -162,35 +167,41 @@ lat,lon,alt
 
 ## 📊 Пример консольного вывода
 ```text
-guy@guy-home:~$ ros2 run drone_controller_cpp pid_machine
-[INFO] [1792597740.375735524] [minimal_controller]: Контроллер запущен в один поток.
-[INFO] [1792597740.375974943] [minimal_controller]: Журнал полёта: /home/guy/drone_logs/track.csv
-[INFO] [1792597740.425956607] [minimal_controller]: 0,0.0000000,0.0000000,0.00,0.0,STABILIZE,INIT
-[INFO] [1792597740.475881918] [minimal_controller]: Запрос режима GUIDED (4)...
-[INFO] [1792597740.525889911] [minimal_controller]: Запрос на ARM...
-[INFO] [1792597740.544623921] [minimal_controller]: Arm response: result=1
-[INFO] [1792597740.575947694] [minimal_controller]: Запрос взлета на 15 метров...
-[INFO] [1792597740.585539809] [minimal_controller]: Takeoff service response received: status=1
-[INFO] [1792597744.475882112] [minimal_controller]: 4,-35.3632622,149.1652374,584.19,99.0,GUIDED,WAIT_TAKEOFF_COMPLETE
-[INFO] [1792597748.475901876] [minimal_controller]: 8,-35.3632622,149.1652374,592.39,98.0,GUIDED,WAIT_TAKEOFF_COMPLETE
-[INFO] [1792597751.476009683] [minimal_controller]: PID: eN=0.0 eE=0.0 eU=0.4 → vN=0.00 vE=0.00 vU=0.08
-[INFO] [1792597751.476262862] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1792597752.476012778] [minimal_controller]: 12,-35.3632584,149.1652374,599.10,97.0,GUIDED,FLY_TO_POINT
-[INFO] [1792597752.476139738] [minimal_controller]: PID: eN=99.8 eE=0.0 eU=-0.0 → vN=5.00 vE=0.00 vU=-0.00
-[INFO] [1792597753.525968914] [minimal_controller]: PID: eN=96.8 eE=0.0 eU=0.0 → vN=5.00 vE=0.00 vU=0.01
+guy@guy-home:~/ardu_ws$ ros2 run drone_controller_cpp pid_machine --ros-args -p wind_e:=-3.0 -p ki_h:=0.04 -p kd_h:=1.0 -p a_d:=0.01
+[INFO] [1793189268.872286361] [minimal_controller]: Контроллер запущен в один поток.
+[INFO] [1793189268.872507756] [minimal_controller]: Журнал полёта: /home/guy/drone_logs/track.csv
+[INFO] [1793189268.922562126] [minimal_controller]: 0,0.0000000,0.0000000,0.00,0.0,STABILIZE,INIT,0.00,0.00,0.00,0.0,0.0,0.0
+[INFO] [1793189268.972481489] [minimal_controller]: Запрос режима GUIDED (4)...
+[INFO] [1793189269.022473571] [minimal_controller]: Запрос на ARM...
+[INFO] [1793189269.045172044] [minimal_controller]: Arm response: result=1
+[INFO] [1793189269.072452713] [minimal_controller]: Запрос взлета на 15 метров...
+[INFO] [1793189269.080202861] [minimal_controller]: Takeoff service response received: status=1
+[INFO] [1793189272.922783312] [minimal_controller]: 4,-35.3632622,149.1652374,584.16,99.0,GUIDED,WAIT_TAKEOFF_COMPLETE,0.00,0.00,0.00,0.0,0.0,0.0
+[INFO] [1793189276.923122759] [minimal_controller]: 8,-35.3632622,149.1652374,592.21,98.0,GUIDED,WAIT_TAKEOFF_COMPLETE,0.00,0.00,0.00,0.0,0.0,0.0
+[INFO] [1793189279.973352561] [minimal_controller]: PID: eN=0.0 eE=0.0 eU=0.4 → vN=0.00 vE=0.00 vU=0.09
+[INFO] [1793189279.973541073] [minimal_controller]: Целевая точка достигнута...
+[INFO] [1793189280.923446076] [minimal_controller]: 12,-35.3632622,149.1652374,599.08,97.0,GUIDED,FLY_TO_POINT,5.00,0.00,0.00,100.2,0.0,0.0
+[INFO] [1793189281.973517635] [minimal_controller]: PID: eN=97.6 eE=1.4 eU=0.0 → vN=5.00 vE=0.42 vU=0.01
+[INFO] [1793189283.973746014] [minimal_controller]: PID: eN=87.9 eE=5.5 eU=-0.0 → vN=5.00 vE=1.73 vU=-0.00
+[INFO] [1793189284.923763494] [minimal_controller]: 16,-35.3631096,149.1651611,599.11,96.0,GUIDED,FLY_TO_POINT,5.00,2.21,-0.00,83.6,6.9,-0.0
+[INFO] [1793189285.973858587] [minimal_controller]: PID: eN=78.1 eE=8.3 eU=-0.0 → vN=5.00 vE=2.74 vU=-0.00
+[INFO] [1793189287.974064132] [minimal_controller]: PID: eN=67.9 eE=8.3 eU=-0.0 → vN=5.00 vE=3.07 vU=-0.00
 ...
-[INFO] [1792597916.477750900] [minimal_controller]: PID: eN=0.0 eE=-2.8 eU=0.0 → vN=0.00 vE=-0.28 vU=0.00
-[INFO] [1792597916.777691710] [minimal_controller]: 176,-35.3632622,149.1652679,599.09,50.0,GUIDED,FLY_TO_POINT
-[INFO] [1792597917.527709298] [minimal_controller]: PID: eN=0.0 eE=-2.8 eU=0.0 → vN=0.00 vE=-0.28 vU=0.00
-[INFO] [1792597917.977751531] [minimal_controller]: Целевая точка достигнута...
-[INFO] [1792597918.027703830] [minimal_controller]: Запрос режима LAND (9)...
-[INFO] [1792597920.777789410] [minimal_controller]: 180,-35.3632622,149.1652527,596.25,49.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1792597924.827804812] [minimal_controller]: 184,-35.3632622,149.1652527,593.26,48.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1792597928.827853910] [minimal_controller]: 188,-35.3632622,149.1652527,591.24,47.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1792597932.827880671] [minimal_controller]: 192,-35.3632622,149.1652527,589.24,46.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1792597936.827885819] [minimal_controller]: 196,-35.3632622,149.1652527,587.23,45.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1792597940.828055020] [minimal_controller]: 200,-35.3632622,149.1652527,585.24,44.0,LAND,WAIT_LANDING_RESPONSE
-[INFO] [1792597942.178005161] [minimal_controller]: Миссия завершена успешно!
+[INFO] [1793189409.280063133] [minimal_controller]: 140,-35.3632584,149.1655884,599.09,60.0,GUIDED,FLY_TO_POINT,0.08,-2.68,0.00,-0.4,-31.9,0.0
+[INFO] [1793189410.730080751] [minimal_controller]: PID: eN=-0.4 eE=-23.5 eU=-0.0 → vN=0.08 vE=-1.88 vU=-0.00
+[INFO] [1793189412.779837264] [minimal_controller]: PID: eN=-0.8 eE=-13.9 eU=-0.0 → vN=-0.05 vE=-1.20 vU=-0.00
+[INFO] [1793189413.329762999] [minimal_controller]: 144,-35.3632545,149.1653595,599.09,59.0,GUIDED,FLY_TO_POINT,-0.05,-0.90,0.00,-0.8,-11.1,0.0
+[INFO] [1793189414.829739038] [minimal_controller]: PID: eN=-0.4 eE=-4.2 eU=0.0 → vN=0.06 vE=-0.36 vU=0.00
+[INFO] [1793189416.129717340] [minimal_controller]: Целевая точка достигнута...
+[INFO] [1793189416.179698515] [minimal_controller]: Запрос режима LAND (9)...
+[INFO] [1793189417.379685753] [minimal_controller]: 148,-35.3632584,149.1651917,598.57,58.0,LAND,WAIT_LANDING_RESPONSE,-0.09,-0.34,0.00,-0.8,0.0,0.0
+[INFO] [1793189421.429302983] [minimal_controller]: 152,-35.3632584,149.1651917,594.05,57.0,LAND,WAIT_LANDING_RESPONSE,-0.09,-0.34,0.00,-0.8,0.0,0.0
+[INFO] [1793189425.479128938] [minimal_controller]: 156,-35.3632584,149.1651917,592.03,56.0,LAND,WAIT_LANDING_RESPONSE,-0.09,-0.34,0.00,-0.8,0.0,0.0
+[INFO] [1793189429.528951585] [minimal_controller]: 160,-35.3632584,149.1651917,590.00,55.0,LAND,WAIT_LANDING_RESPONSE,-0.09,-0.34,0.00,-0.8,0.0,0.0
+[INFO] [1793189433.578696567] [minimal_controller]: 164,-35.3632584,149.1651917,587.98,54.0,LAND,WAIT_LANDING_RESPONSE,-0.09,-0.34,0.00,-0.8,0.0,0.0
+[INFO] [1793189437.628478844] [minimal_controller]: 168,-35.3632584,149.1651917,585.95,53.0,LAND,WAIT_LANDING_RESPONSE,-0.09,-0.34,0.00,-0.8,0.0,0.0
+[INFO] [1793189440.428368420] [minimal_controller]: Миссия завершена успешно!
+
 ```
 ## 🧪 Пример использования
 
@@ -243,7 +254,9 @@ ros2 run drone_controller plot_log ~/drone_logs/track.csv
 - [x] Расширить CSV колонками PID (vN, vE, vU, eN, eE, eU)
 - [x] Добавление фильтра низких частот для дифференциального коэффициента.
 - [x] Подбор Ki и Kd для точного дотягивания до точки
-- [ ] Компенсация ветра (SIM_WIND_SPD)
+- [ ] Компенсация ветра (SIM_WIND_SPD) - не удалось запустить в SITL
+- [x] Компенсация ветра (виртуальный ветер `wind_e`)
+- [ ] Переход на Gazebo для реалистичной симуляции ветра
 
 ## [История изменений](CHANGELOG.md)
 

@@ -202,6 +202,7 @@ time_period_ = std::chrono::milliseconds(period_ms); */
     this->declare_parameter<double>("max_v_u", 2.0);
 // Коэффициент фильтра для дифференциальной составляющей
     this->declare_parameter<double>("a_d", 0.05);
+    this->declare_parameter<double>("wind_e", 0.0); // холодный ветер с востока(м/с)
 
 // Применяем параметры
     max_distance_ = this->get_parameter("md").as_int();
@@ -466,9 +467,10 @@ private:
     msg.header.frame_id = "map"; // Earth frame (ENU)
 
 // Для ENU: X = East, Y = North, Z = Up
-    msg.twist.linear.x = v_east;  // Ваш PID по востоку
-    msg.twist.linear.y = v_north; // Ваш PID по северу
-    msg.twist.linear.z = v_up;    // Ваш PID по высоте (вверх)
+    double wind_east = this->get_parameter("wind_e").as_double();
+    msg.twist.linear.x = v_east + wind_east;  // Добавляем виртуальный ветер
+    msg.twist.linear.y = v_north;             // PID по северу
+    msg.twist.linear.z = v_up;                // PID по высоте (вверх)
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
         "PID: eN=%.1f eE=%.1f eU=%.1f → vN=%.2f vE=%.2f vU=%.2f",
         error_north, error_east, error_up, v_north, v_east, v_up);
