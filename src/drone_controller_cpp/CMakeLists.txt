@@ -14,7 +14,7 @@ find_package(ardupilot_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
-add_executable(pid_machine src/pid_twist.cpp src/pid_controller.cpp)
+add_executable(pid_machine src/pid_gz.cpp src/pid_controller.cpp)
 
 ament_target_dependencies(pid_machine 
   rclcpp
